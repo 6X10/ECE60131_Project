@@ -1,5 +1,7 @@
 # ECE60131_Project
 
+Reference: [![CITRIS](assets/citris-banner.png)](https://arxiv.org/abs/2202.03169)
+
 ## Preliminaries and Causal Assumptions
 - The underlying latent causal process is a dynamic Bayesian network (DBN) $G = (V,E)$ over a set of $K$ causal variables.
   - Each node $i \in V$ is associated with a causal variable $C_i$, which can be scalar or vector valued.
@@ -65,27 +67,23 @@ Suppose for each causal factor $C_i \in \mathcal{D}\_i^{M_i}$, there exists an i
   s_i(C_i^{t})
   = \bigl(s_i^{\mathrm{var}}(C_i^{t}),
           s_i^{\mathrm{inv}}(C_i^{t})\bigr)
-\label{eq:split}
 ```
 
 - The split $s$ must be invertible, so that we can map back and forth between $\mathcal{D}_i^{M_i}$ and $\mathcal{D}_i^{\mathrm{var}} \times \mathcal{D}\_i^{\mathrm{inv}}$ without losing information.
 - To be called a split in this setup, $s$ must satisfy
+```math
+  s_i^{\mathrm{inv}}(C_i^{t}) \perp I\_i^t \mid pa(C_i^t),
+```
+  i.e., $s_i^{\mathrm{inv}}(C_i^{t})$ is independent of the intervention variable $I_i^{t}$ given the parents of $C_i^{t}$. Also, both parts of the split must be conditionally independent, i.e.
   ```math
-s_i^{\mathrm{inv}}(C_i^{t})
-  \perp I_i^{t} \mid \mathrm{pa}(C_i^{t}),
-  ```
-i.e., $s_i^{\mathrm{inv}}(C_i^{t})$ is independent of the intervention variable $I_i^{t}$ given the parents of $C_i^{t}$. Also, both parts of the split must be conditionally independent, i.e.
-  ```math
-  s_i^{\mathrm{inv}}(C_i^{t})
-  \perp s_i^{\mathrm{var}}(C_i^{t})
-  \mid \mathrm{pa}(C_i^{t}), I_i^{t}.
+  s_i^{\mathrm{inv}}(C_i^{t}) \perp s_i^{\mathrm{var}}(C_i^{t}) \mid pa(C_i^{t}), I_i^{t}.
   ```
   
 This means that $s_i^{\mathrm{var}}(C_i^{t})$ will contain the manipulable, or variable, part of $C_i^{t}$. In contrast, $s_i^{\mathrm{inv}}(C_i^{t})$ is the invariable part of $C_i^{t}$ which is independent of the intervention.
 
 For any causal variable, there may exist multiple possible splits. There is always at least the trivial split where $\mathcal{D}_i^{\mathrm{var}} = \mathcal{D}_i^{M_i}$ is the original domain of $C_i$, and $\mathcal{D}_i^{\mathrm{inv}} = \{0\}$ is the one-element set (no invariant information).
 
-(But not all splits are trivial: For the example in Figure~3, we can split the causal factor $x$ in $s_i^{\mathrm{var}}(x)$ such that the box identifier $b$ is in $s_i^{\mathrm{var}}(x)$ and the relative position in the box $x'$ is in $s_i^{\mathrm{inv}}(x)$. Intuitively, we want to identify the split where $s_i^{\mathrm{var}}$ contains \emph{only} the manipulable information:)
+(But not all splits are trivial: For the example in Figure~3, we can split the causal factor $x$ in $s_i^{\mathrm{var}}(x)$ such that the box identifier $b$ is in $s_i^{\mathrm{var}}(x)$ and the relative position in the box $x'$ is in $s_i^{\mathrm{inv}}(x)$. Intuitively, we want to identify the split where $s_i^{\mathrm{var}}$ contains only the manipulable information:)
 
 \newtheorem{def}{Definition}
 The minimal causal split of a variable $C_i^{t}$ with respect to its intervention variable $I_i^{t}$ is the split $s_i$ which maximizes the information content $H\bigl(s_i^{\mathrm{inv}}(C_i^{t}) \mid \mathrm{pa}(C_i^{t})\bigr)$. Under this split, $s_i^{\mathrm{var}}(C_i^{t})$ is defined as the minimal causal variable and denoted by $s_i^{\mathrm{var}*}(C_i^{t})$.
