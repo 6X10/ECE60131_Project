@@ -72,7 +72,7 @@ Suppose for each causal factor $C_i \in \mathcal{D}\_i^{M_i}$, there exists an i
 - The split $s$ must be invertible, so that we can map back and forth between $\mathcal{D}_i^{M_i}$ and $\mathcal{D}_i^{\mathrm{var}} \times \mathcal{D}\_i^{\mathrm{inv}}$ without losing information.
 - To be called a split in this setup, $s$ must satisfy
 ```math
-  s_i^{\mathrm{inv}}(C_i^{t}) \perp I\_i^t \mid pa(C_i^t),
+  s_i^{\mathrm{inv}}(C_i^{t}) \perp I_i^t \mid pa(C_i^t),
 ```
   i.e., $s_i^{\mathrm{inv}}(C_i^{t})$ is independent of the intervention variable $I_i^{t}$ given the parents of $C_i^{t}$. Also, both parts of the split must be conditionally independent, i.e.
   ```math
@@ -83,14 +83,54 @@ This means that $s_i^{\mathrm{var}}(C_i^{t})$ will contain the manipulable, or v
 
 For any causal variable, there may exist multiple possible splits. There is always at least the trivial split where $\mathcal{D}_i^{\mathrm{var}} = \mathcal{D}_i^{M_i}$ is the original domain of $C_i$, and $\mathcal{D}_i^{\mathrm{inv}} = \{0\}$ is the one-element set (no invariant information).
 
-(But not all splits are trivial: For the example in Figure~3, we can split the causal factor $x$ in $s_i^{\mathrm{var}}(x)$ such that the box identifier $b$ is in $s_i^{\mathrm{var}}(x)$ and the relative position in the box $x'$ is in $s_i^{\mathrm{inv}}(x)$. Intuitively, we want to identify the split where $s_i^{\mathrm{var}}$ contains only the manipulable information:)
+(But not all splits are trivial: For the example in Figure~3, we can split the causal factor $x$ in $s_i^{\mathrm{var}}(x)$ such that the box identifier $b$ is in $s_i^{\mathrm{var}}(x)$ and the relative position in the box $x'$ is in $s_i^{\mathrm{inv}}(x)$. 
+
+Intuitively, we want to identify the split where $s_i^{\mathrm{var}}$ contains only the manipulable information:)
 
 \newtheorem{def}{Definition}
 The minimal causal split of a variable $C_i^{t}$ with respect to its intervention variable $I_i^{t}$ is the split $s_i$ which maximizes the information content $H\bigl(s_i^{\mathrm{inv}}(C_i^{t}) \mid \mathrm{pa}(C_i^{t})\bigr)$. Under this split, $s_i^{\mathrm{var}}(C_i^{t})$ is defined as the minimal causal variable and denoted by $s_i^{\mathrm{var}*}(C_i^{t})$.
 \end{def}
 
+- $H$ denotes the entropy in the discrete case, or the limiting density of discrete points (LDDP) which measures information content of a continuous variable and is invariant under the change of variables induced by the map $s$.
+(Intuitively, this ensures that only the information which truly depends on the intervention is represented in $s_i^{\mathrm{var}}(C_i)$. The definition of the minimal causal split
+depends on the characteristics of the provided intervention. In our previous example, when an intervention on $x$ would also change the internal box position, the minimal causal variable would contain the full causal factor $x$. Our goal becomes to identify these minimal causal variables.)
 
+(Depending on the interventions, the causal graph among the minimal causal graph may differ from the original graph on $C_1,\ldots,C_K$.)
+- If the interventions are soft, the minimal causal variable, $s_i^{\mathrm{var}}(C_i)$, has as parents the subset of $\mathrm{pa}(C_i)$, whose relation to $C_i$ is influenced by the intervention.
+(For instance, consider a three-dimensional causal variable, of which each dimension has a different set of parents. If an intervention only affects the first dimension, $s_i^{\mathrm{var}}(C_i)$ has the same parents as the first dimension, and $s_i^{\mathrm{inv}}(C_i)$ the same parents as the last two dimensions.
+- For perfect interventions, the intervention-invariant part, $s_i^{\mathrm{inv}}(C_i)$, has no parents since all temporal dependencies are influenced by the intervention. Thus, in this case, the parents of $s_i^{\mathrm{var}}(C_i)$ are the same as of the true causal variable, $\mathrm{pa}(C_i)$.
 
+### Learning Minimal Causal Variables
+
+- We consider a dataset $\mathcal{D}$ of tuples $\{x^{t}, x^{t+1}, I^{t+1}\}$ where $x^{t}, x^{t+1} \in \mathbb{R}^{N}$ represent the observations at time step $t$ and $t+1$ respectively, and $I^{t+1}$ describes the targets of the interventions performed on $C^{t+1}$. 
+- We consider a latent space $\mathcal{Z}$ larger than the latent causal factor space $\mathcal{C}$, i.e., $\mathcal{Z} \subseteq \mathbb{R}^{M}$, $M \ge \dim(\mathcal{E}) + \sum_{i=1}^{K} M_{i} = \dim(\mathcal{E}) + \dim(\mathcal{C})$. In this latent space, we aim to disentangle the causal factors. Since we may not know the exact dimensions $M_{1},\ldots,M_{K}$, we overestimate its size in the latent space $\mathcal{Z}$.
+- Our goal is to approximate the inverse of the observation function $h$ by learning two components.
+  - First, we learn an invertible mapping from observations to latent space, $g_{\theta} : \mathcal{X} \rightarrow \mathcal{Z}$.
+  - Second, we learn an assignment function $\psi : [1..M] \rightarrow [0..K]$ that maps each dimension of $\mathcal{Z}$ to a causal factor.
+  - In addition to the $K$ causal factors, we use $\psi(j) = 0$, $j \in [1..M]$ to indicate that the latent dimension $z_{j}$ does not belong to any minimal causal variable. Instead, those dimensions might model $s_{i}^{\mathrm{inv}}(C_{i})$ for some causal factor $C_{i}$; or the observation noise $E_{\mathrm{o}}^{t}$.
+  - Finally, we denote the set of latent variables that $\psi$ assigns to the causal factor $C_{i}$ with $z_{\psi_{i}} = \{ z_{j} \mid j \in [1..M], \psi(j) = i \}$.
+- To enforce a disentanglement of causal factors, we model a prior distribution in latent space, $p_{\phi}(z^{t+1} \mid z^{t}, I^{t+1})$, with $x^{t}, x^{t+1} \in \mathcal{X}$, $z^{t}, z^{t+1} \in \mathcal{Z}$, $z^{t} = g_{\theta}(x^{t})$, $z^{t+1} = g_{\theta}(x^{t+1})$. This transition prior enforces a disentanglement by conditioning each latent variable on exactly one of the intervention targets:
+```math
+p_{\phi}(z^{t+1} \mid z^{t}, I^{t+1})
+= \prod_{i=0}^{K}
+  p_{\phi}\bigl(z^{t+1}_{\psi_{i}} \mid z^{t}, I^{t+1}_{i}\bigr),
+```
+where $I^{t+1}\_{0} = 0$. Then, the objective of the model is to maximize the likelihood:
+```math
+p_{\phi,\theta}(x^{t+1} \mid x^{t}, I^{t+1})
+  = \left\lvert
+      \frac{\partial g_{\theta}(x^{t+1})}{\partial x^{t+1}}
+    \right\vert
+    p_{\phi}(z^{t+1} \mid z^{t}, I^{t+1}).
+```
+
+(Under the assumptions stated in Section~3.1, we can prove the following identifiability result for this setup)
+- \textbf{Theorem 3.3.}
+\textit{Suppose that $\phi^{\ast}$, $\theta^{\ast}$ and $\psi^{\ast}$ are the parameters that, under the constraint of maximizing the likelihood $p_{\phi,\theta}(x^{t+1} \mid x^{t}, I^{t+1})$, maximize the information content of $p_{\phi}(z^{t+1}_{\psi_{0}} \mid z^{t})$. Then, with sufficient latent dimensions, the model $\phi^{\ast}$, $\theta^{\ast}$, $\psi^{\ast}$ learns a latent structure where $z^{t+1}_{\psi_{i}}$ models the minimal causal variable of $C_{i}$ if $C_{i}^{t+1} \not\!\perp I_{i}^{t+1} \mid C^{t}, I_{j}^{t+1}$ for any $i \neq j$. All remaining information is modeled in $z_{\psi_{0}}$.}
+
+It relies on $I_{i}^{t+1}$ not being a deterministic function of any other intervention target. A sufficient condition for this is the interventions being independent of each other, or single-target interventions with observational data. Finding the minimal variables intuitively means that the latent variables $z_{\psi_{i}}$ model only the information of $C_{i}$ which strictly depends on the intervention target $I_{i}^{t+1}$, thus defining causal variables by their intervention dependency. Going back to the example of the $x$ position of the ball in Figure~3, we would model the box identifier in $z_{\psi_{1}}$ if $C_{1} = x$, while the internal box position is modeled in $z_{\psi_{0}}$. We empirically verify the learned split for this example in Appendix~D.3. Nonetheless, one can always ensure that for any definition of the causal process, $z_{\psi_{i}}$ only contains information of causal variable $C_{i}$ of that process, and no other causal variable.
+
+## Causal Identifiability from Temporal Intervened Sequences
 
 
 
