@@ -1,11 +1,7 @@
 # CITRIS (Causal Identifiability from Temporal Intervened Sequences) + TS-CP^2
 
-Reference: [![CITRIS](assets/citris-banner.png)](https://arxiv.org/abs/2202.03169) ![TS-CP^2](https://arxiv.org/abs/2011.14097)
-
-## Background
-<img width="945" height="569" alt="image" src="https://github.com/user-attachments/assets/a338474f-a147-422a-a485-0b2b550d58ec" />
-
-
+Reference Paper: [![CITRIS](assets/citris-banner.png)](https://arxiv.org/abs/2202.03169) ![TS-CP^2](https://arxiv.org/abs/2011.14097) 
+Reference Code: [![CITRISVAE](https://github.com/phlippe/CITRIS/tree/main)
 
 ## Preliminaries and Causal Assumptions
 - **The underlying latent causal process is a dynamic Bayesian network (DBN) $G = (V,E)$ over a set of $K$ causal variables.**
