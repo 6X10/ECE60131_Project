@@ -1,0 +1,17 @@
+{
+    "test_distance_loss": 40.21181106567383,
+    "test_ball-b_dist": 0.5065000057220459,
+    "test_ball-b_norm_dist": 0.5065000057220459,
+    "test_ball-x_dist": 0.6535843014717102,
+    "test_ball-x_norm_dist": 0.6535843014717102,
+    "test_ball-y_dist": 0.7545618414878845,
+    "test_ball-y_norm_dist": 0.7545618414878845,
+    "test_ball-b_true_dist": 0.0,
+    "test_ball-x_true_dist": 0.003813359420746565,
+    "test_ball-y_true_dist": 0.0021822135895490646,
+    "test_loss": 1.9146462678909302,
+    "corr_callback_r2_matrix_diag_test": -0.003197272541001439,
+    "corr_callback_r2_matrix_max_off_diag_test": -0.0033136606216430664,
+    "corr_callback_spearman_matrix_diag_test": 0.003284577513113618,
+    "corr_callback_spearman_matrix_max_off_diag_test": 0.002772738536198934
+}

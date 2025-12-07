@@ -1,0 +1,22 @@
+act_fn: silu
+angle_reg_weight: 0.1
+autoencoder_checkpoint: checkpoints/Autoencoder/AE_32l_64hid/version_0/checkpoints/epoch=19-step=7800.ckpt
+batch_size: 128
+c_hid: 64
+c_in: 3
+causal_var_info: !!python/object/apply:collections.OrderedDict
+- - - ball-b
+    - categ_2
+  - - ball-x
+    - continuous_1
+  - - ball-y
+    - continuous_1
+cluster_log_folder: false
+data_img_width: 64
+img_width: 32
+lr: 0.001
+max_iters: 156200
+num_workers: 4
+single_linear: false
+warmup: 100
+weight_decay: 0.0001

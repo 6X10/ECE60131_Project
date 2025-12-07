@@ -1,0 +1,11 @@
+{
+    "test_kld_t1": 2.1940945771348197e-06,
+    "test_rec_loss_t1": 35.98301696777344,
+    "test_cpc_loss": 0.0,
+    "test_gate_loss": 0.01912030577659607,
+    "test_loss": 35.98303985595703,
+    "corr_callback_r2_matrix_diag_test": 0.0032485525589436293,
+    "corr_callback_r2_matrix_max_off_diag_test": -0.011118213335673014,
+    "corr_callback_spearman_matrix_diag_test": 0.005779620725661516,
+    "corr_callback_spearman_matrix_max_off_diag_test": -0.0005436100376149019
+}
