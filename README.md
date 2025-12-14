@@ -18,9 +18,35 @@ conda activate citris
 ### Running experiments
 For running an experiment, the following steps need to be taken:
 1. Train a Causal Encoder (experiments/train_causal_encoder.py) on the dataset. This is the supervised CNN used for the triplet evaluation for CITRIS.
-2. Train the respective model (experiments/train_vae.py) where the causal encoder, and eventually the autoencoder, are passed as arguments.
+```bash
+python train_causal_encoder.py --data_dir ../data/pinball/
+```
 
-See the additional README in the folder experiments/ for further details and examples for running experiments.
+3. Train the respective model (experiments/train_vae.py) where the causal encoder, and eventually the autoencoder, are passed as arguments.
+To train CITRIS-VAE, you can use the following command:
+```bash
+python train_vae.py --model CITRISVAE \
+                    --data_dir ../data/ball_in_boxes \
+                    --causal_encoder_checkpoint ../data/voronoi_6vars_random_seed42/models/CausalEncoder.ckpt \
+                    --num_latents 12 \
+                    --beta_t1 10 \
+                    --beta_classifier 10 \
+                    --beta_mi_estimator 10 \
+                    --graph_learning_method ENCO \
+                    --lambda_sparse 0.02
+```
+
+To train CITRISTSCP2-VAE, you can use the following command:
+```bash
+python -m train_vae --model CITRISTSCP2VAE\
+                    --data_dir data/ball_in_boxes\
+                    --causal_encoder_checkpoint checkpoints/CausalEncoder/CausalEncoder_in_boxes_64width_64hid/version_2/checkpoints/epoch=179-step=140580.ckpt\
+                    --seq_len 10\
+                    --window_len 3\
+```
+
+
+
 
 ## 1. Motivation / Core Question for the project
 
