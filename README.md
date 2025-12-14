@@ -3,16 +3,40 @@
 Reference Paper: [![CITRIS](assets/citris-banner.png)](https://arxiv.org/abs/2202.03169) ![TS-CP^2](https://arxiv.org/abs/2011.14097) 
 Reference Code: [![CITRISVAE](https://github.com/phlippe/CITRIS/tree/main)
 
-## 1. Motivation / Core Question
+## 0. Code
+The repository is structured in three main folders:
+- experiments contains all utilities for running experiments.
+- models contains the code of CITRIS and CITRIS-TSCP^2.
+- data_generation contains all utilities for creating the dataset.
+
+### 0.1.1. Environment
+```bash
+conda env create -f environment.yml
+conda activate citris
+```
+
+### Running experiments
+For running an experiment, the following steps need to be taken:
+1. Train a Causal Encoder (experiments/train_causal_encoder.py) on the dataset. This is the supervised CNN used for the triplet evaluation for CITRIS.
+2. Train the respective model (experiments/train_vae.py) where the causal encoder, and eventually the autoencoder, are passed as arguments.
+
+See the additional README in the folder experiments/ for further details and examples for running experiments.
+
+## 1. Motivation / Core Question for the project
 
 CITRIS assumes a temporally evolving causal process with interventions, but it doesn’t explicitly model abrupt regime changes / change points.
 
 Project question:
-Does adding a change-point-aware temporal window encoder and contrastive objective (TS-CP²) improve (a) identification of intervention targets and (b) downstream robustness under distribution shifts compared to vanilla CITRIS?
+1. **Real-world setting (no labels):** In realistic sequential data, we usually don’t have access to ground-truth intervention targets \(I^t\).  
+   Can we build a **CITRIS-like model that works without intervention labels** by inferring **soft intervention/change-point gates** \(g_t \in (0,1)^K\) directly from the latent time series?
+
+2. **Change-point awareness:** If we add a TS-CP²-style temporal contrastive module (history–future CPC), do we obtain representations that are more sensitive to **regime shifts / abrupt distribution changes**?
+
+3. **Downstream robustness:** Does this label-free, change-point-aware variant improve (a) recovery of meaningful causal factors and (b) robustness under distribution shifts, compared to vanilla CITRIS that relies on labeled intervention targets?
 
 ## 2. Method
-### 2.1.1. CITRIS-VAE
-#### Preliminaries and Causal Assumptions
+### 2.1. CITRIS-VAE
+#### 2.1.1. Set-up: Temporal Intervened Sequences (TRIS)
 - **The underlying latent causal process is a dynamic Bayesian network (DBN) $G = (V,E)$ over a set of $K$ causal variables.**
   - Each node $i \in V$ is associated with a causal variable $C_i$, which can be scalar or vector valued.
   - Each edge $(i,j)\in E$ represents a causal replation from $C_i$ to $C_j$: $C_i \rightarrow C_j$, where $C_i$ is a parent of $C_j$ and $pa_G (C_i)$ are all parents of $C_i$ in $G.$
@@ -20,57 +44,42 @@ Does adding a change-point-aware temporal window encoder and contrastive objecti
   - We denote the set of all causal variables at time $t$ as $C^t = (C^t_1, \ldots, C^t_K)$, where $C^{t}$ inherits all edges from its components $C_{i}$ for $i \in \[ 1..K\]$ without introducing cycles.
   - In this setting the structure of the graph is time-invariant, i.e., $pa_G(C^t_i) = pa_G(C^1_i)$ for any $t \in \[ 1..T \]$.
   - For $t \in \[ 1, \dots , T\]$ and for each causal factor $i \in \[ 1, \dots , K \]$, we can model $C_i = f_i(pa_G (C_i^t), \epsilon_i)$, wehre $pa_G (C_i^t) \subset {C_1^{t-1}, \dots, C_k^{t-1}}.$, where all $\epsilon_{i}$ for $i \in \[ 1..K \]$ are mutually independent noises
-
 - **We use a binary intervention vector $I^{t} \in \lbrace 0,1 \rbrace^{K}$ to indicate that a variable $C_{i}^{t}$ in $G$ is intervened upon if and only if $I_{i}^{t} = 1$.**
 - We consider that the intervention vector components $I_{i}^{t}$ might be confounded by another $I_{j}^{t}$, $i \neq j$, and represent these dependencies with an unobserved regime variable $R^{t}$
-
-- With this, we construct an augmented DAG $G' = (V', E')$, where $V' = \lbrace \lbrace C_i^t \rbrace\^K_{i=1} \cup \lbrace I_i^t \rbrace^K_{i=1} \cup R^t \rbrace^T_{t=1}$
-  and $E' = \lbrace \lbrace pa_G(C^t_i) \to C_i^t \rbrace^{K}\_{i=1} \cup \lbrace I_i^t \to C_i^t\rbrace\^K_{i=1}
-      \cup \lbrace R^{t} \to I_{i}^{t} \rbrace_{i=1}^{K} \rbrace \_{t=1}^{T}.$
 
 - We say that a distribution $p$ is Markov w.r.t. the augmented DAG $G'$ if it factors as $p(V') = \prod_{j \in V'} p(V_{j} \mid pa_{G'}(V_{j})),$
 where $V_{j}$ includes the causal factors $C_{i}^{t}$, the intervention vector components $I_{i}^{t}$, and the regime $R^{t}$. Moreover, we say that $p$ is faithful to a causal graph $G'$, if there are no additional conditional independences to the d-separations one can read from the graph $G'$.
 
 - **We will consider soft interventions, in which the conditional distribution changes**, i.e., $p(C_{i}^{t} \mid pa_G(C_{i}^{t}), I_{i}^{t}=1) \neq p(C_{i}^{t} \mid pa_G(C_{i}^{t}), I_{i}^{t}=0),$ which include as a special case perfect interventions $\mathrm{do}(C_{i} = c_{i})$
 
-#### Identifiability of minimal Causal Variables
-
 <img width="569" height="475" alt="image" src="https://github.com/user-attachments/assets/cec6fd88-0b93-48da-99c5-99212250f731" />
 
-##### TempoRal Intervened Sequences (TRIS)
 **we consider data generated by an underlying latent temporal causal process with $K$ causal factors $\bigl(C_{1}^{t}, C_{2}^{t}, \ldots, C_{K}^{t}\bigr)_{t=1}^{T}$. At each time step $t$, we observe a high-dimensional observation $X^{T}$ representing a noisy, entangled view of all causal factors.**
 
-###### Multidimensional Causal Factors
-- We allow them to be potentially multidimensional, i.e., $C_{i} \in \mathcal{D}\_{i}^{M_{i}}$ with $M_{i} \ge 1$ and in practice we let $\mathcal{D}_{i}$ be $\mathbb{R}$ for continuous variables (e.g., spatial position), $\mathbb{Z}$ for discrete variables (e.g., the score of a player) or mixed. 
-- We define the causal factor space as $\mathcal{C} = \mathcal{D}\_{1}^{M_{1}} \times \mathcal{D}\_{2}^{M_{2}} \times \cdots \times \mathcal{D}\_{K}^{M_{K}}.$
+- **Multidimensional Causal Factors**
+  - We allow them to be potentially multidimensional, i.e., $C_{i} \in \mathcal{D}\_{i}^{M_{i}}$ with $M_{i} \ge 1$ and in practice we let $\mathcal{D}_{i}$ be $\mathbb{R}$ for continuous variables (e.g., spatial position), $\mathbb{Z}$ for discrete variables (e.g., the score of a player) or mixed. 
+  - We define the causal factor space as $\mathcal{C} = \mathcal{D}\_{1}^{M_{1}} \times \mathcal{D}\_{2}^{M_{2}} \times \cdots \times \mathcal{D}\_{K}^{M_{K}}.$
 
-###### Observation Function
-- We define the observation function $h(C_{1}^{t}, C_{2}^{t}, \ldots, C_{K}^{t}, E_{\mathrm{o}}^{t}) = X^{t}$, where $E_{\mathrm{o}}^{t}$ represents any noise independent of the causal factors that influence the observations, and $h : \mathcal{C} \times \mathcal{E} \to \mathcal{X}$ is a function from the causal factor space $\mathcal{C}$ and the space of the noise variables $\mathcal{E}$ to the observation space $\mathcal{X}$.
-- We assume that $h$ is bijective, implying that the joint dimensionality of the noise and causal model is limited to the image size.
+- **Observation Function**
+  - We define the observation function $h(C_{1}^{t}, C_{2}^{t}, \ldots, C_{K}^{t}, E_{\mathrm{o}}^{t}) = X^{t}$, where $E_{\mathrm{o}}^{t}$ represents any noise independent of the causal factors that influence the observations, and $h : \mathcal{C} \times \mathcal{E} \to \mathcal{X}$ is a function from the causal factor space $\mathcal{C}$ and the space of the noise variables $\mathcal{E}$ to the observation space $\mathcal{X}$.
+  - We assume that $h$ is bijective, implying that the joint dimensionality of the noise and causal model is limited to the image size.
   (This allows us to identify each causal factor uniquely from observations by learning an approximation of $f$, while disregarding irrelevant features in the observation space.)
 
-###### Availability of Intervention Targets
+- **Availability of Intervention Targets**
 - We assume that in each time-step some causal factors might (or might not) have been intervened upon and that we have access to the corresponding intervention targets, but not the intervention values.
 
-##### Necessary Condition for Disentanglement in TRIS
+#### 2.1.2. Key idea: Minimal causal variables
+- Necessary Condition for Disentanglement in TRIS
 **In TRIS, we generally cannot disentangle two causal factors if they are always intervened upon jointly, or, on the contrary, if they are never intervened upon.**
 
 \newtheorem{prop}{Proposition}
 In TRIS, if two causal factors $C_i$ and $C_j$ have only been jointly intervened on or not at all, then there exists a causal graph in which $C_i$ and $C_j$ cannot be uniquely identified from observations $X$ and intervention targets $I$.
 \end{prop}
 
-(Additionally, in TRIS where the latent causal factors may correspond to multidimensional vectors, we cannot even completely reconstruct said factors, when by the nature of the system the provided interventions leave some of the causal factor’s dimensions unaffected. In the next section, we will instead introduce the concept of minimal causal variables to characterize what we can identify instead.)
-
-##### Minimal Causal Variables
-
 <img width="612" height="234" alt="image" src="https://github.com/user-attachments/assets/4d76ac46-9229-48b3-8db9-faf4058930c3" />
 
 Interventions may not affect all dimensions of a causal variable
 => Minimal causal variables: the part of a causal variable whose mechanism i sstrictly influeneced by the provided interventions. 
-
-<img width="696" height="267" alt="image" src="https://github.com/user-attachments/assets/41936f47-33f3-425a-b967-455008c9fd92" />
-
-Over time, the ball can move freely within the box it is currently in, but it can only jump into another box if there is an intervention. The intervention moves the ball to the other box, but keeps the relative position of the ball within the box intact. (While one could define this process by a single causal variable $x$ over time,)It can be described by two causal variables: the relative position within the box $x'$ and the current box $b$. Since only $b$ is affected by the intervention, and we consider causal factors to potentially be multidimensional, we could not identify which causal factor $x'$ belongs to.
 
 We formalize this intuition as follows.
 
@@ -109,7 +118,8 @@ The minimal causal split of a variable $C_i^{t}$ with respect to its interventio
 (For instance, consider a three-dimensional causal variable, of which each dimension has a different set of parents. If an intervention only affects the first dimension, $s_i^{\mathrm{var}}(C_i)$ has the same parents as the first dimension, and $s_i^{\mathrm{inv}}(C_i)$ the same parents as the last two dimensions.
 - For perfect interventions, the intervention-invariant part, $s_i^{\mathrm{inv}}(C_i)$, has no parents since all temporal dependencies are influenced by the intervention. Thus, in this case, the parents of $s_i^{\mathrm{var}}(C_i)$ are the same as of the true causal variable, $\mathrm{pa}(C_i)$.
 
-##### Learning Minimal Causal Variables
+
+#### 2.1.3. Learning Minimal Causal Variables
 
 - We consider a dataset $\mathcal{D}$ of tuples $\{x^{t}, x^{t+1}, I^{t+1}\}$ where $x^{t}, x^{t+1} \in \mathbb{R}^{N}$ represent the observations at time step $t$ and $t+1$ respectively, and $I^{t+1}$ describes the targets of the interventions performed on $C^{t+1}$. 
 - We consider a latent space $\mathcal{Z}$ larger than the latent causal factor space $\mathcal{C}$, i.e., $\mathcal{Z} \subseteq \mathbb{R}^{M}$, $M \ge \dim(\mathcal{E}) + \sum_{i=1}^{K} M_{i} = \dim(\mathcal{E}) + \dim(\mathcal{C})$. In this latent space, we aim to disentangle the causal factors. Since we may not know the exact dimensions $M_{1},\ldots,M_{K}$, we overestimate its size in the latent space $\mathcal{Z}$.
@@ -139,7 +149,7 @@ p_{\phi,\theta}(x^{t+1} \mid x^{t}, I^{t+1})
 
 It relies on $I_{i}^{t+1}$ not being a deterministic function of any other intervention target. A sufficient condition for this is the interventions being independent of each other, or single-target interventions with observational data. Finding the minimal variables intuitively means that the latent variables $z_{\psi_{i}}$ model only the information of $C_{i}$ which strictly depends on the intervention target $I_{i}^{t+1}$, thus defining causal variables by their intervention dependency. Going back to the example of the $x$ position of the ball in Figure~3, we would model the box identifier in $z_{\psi_{1}}$ if $C_{1} = x$, while the internal box position is modeled in $z_{\psi_{0}}$. We empirically verify the learned split for this example in Appendix~D.3. Nonetheless, one can always ensure that for any definition of the causal process, $z_{\psi_{i}}$ only contains information of causal variable $C_{i}$ of that process, and no other causal variable.
 
-#### Causal Identifiability from Temporal Intervened Sequences
+#### 2.1.4. Causal Identifiability from Temporal Intervened Sequences (CITRIS-VAE)
 <img width="678" height="403" alt="image" src="https://github.com/user-attachments/assets/c49565bd-d152-4072-a30b-e26c19575c15" />
 
 - We use a Variational Autoencoder (VAE) with
@@ -176,83 +186,118 @@ It relies on $I_{i}^{t+1}$ not being a deterministic function of any other inter
   - the full latent space captures all relevant causal information and temporal structure under interventions.
 
 
-### 2.1.2. Change-Point-Aware Temporal Contrastive Module (TS-CP^2)
+### 2.2. Change-Point-Aware Temporal Contrastive Module (TS-CP^2)
 We extend the original CITRIS-VAE with a **temporal window encoder** and a **contrastive objective** to make the latent representation more sensitive to **change points / regime shifts** in the time series.
 
-### Idea
-
-Given a latent sequence from CITRIS,
-\[
-    \{z_t\}_{t=1}^T, \quad z_t \in \mathbb{R}^D,
-\]
-we build **history** and **future** windows around each time step \(t\):
+#### 2.2.1. Temporal window encoder
+Let \(z_t\in\mathbb{R}^D\) be the CITRIS latent at time \(t\). We encode windows using a temporal encoder \(f_\psi\) (e.g., 1D CNN / TCN / GRU):
 
 \[
-    h_t^{H} = f_\psi(z_{t-L+1:t}), \qquad
-    h_t^{F} = f_\psi(z_{t+1:t+L}),
+h_t^H=f_\psi(z_{t-L+1:t}),\qquad h_t^F=f_\psi(z_{t+1:t+L})
 \]
 
-where:
+Positive pairs are \((h_t^H,h_t^F)\); negatives come from other time indices / sequences.
 
-- \(L\) is the **window length**,
-- \(f_\psi\) is a small **temporal encoder** (1D CNN / TCN / GRU) that maps a window of latents to a fixed-size embedding,
-- \((h_t^{H}, h_t^{F})\) is treated as a **positive pair**, while embeddings from other time steps / sequences form **negative examples**.
-
-Intuitively, windows that belong to the **same local regime** should have similar embeddings, and windows that cross change points or belong to different regimes should be pushed apart.
-
-### TS-CP² Loss
-
-We use a standard InfoNCE-style contrastive loss over history–future pairs:
+#### 2.2.2. Contrastive Predictive Coding (InfoNCE) loss
+We train window embeddings so adjacent windows match and far windows differ:
 
 \[
-\mathcal{L}_{\mathrm{TS\text{-}CP^2}}
-= - \frac{1}{N}
-\sum_{t}
-\log
-\frac{
-    \exp\big( \mathrm{sim}(h_t^{H}, h_t^{F}) / \tau \big)
-}{
-    \sum_{j \in \mathcal{N}(t)}
-    \exp\big( \mathrm{sim}(h_t^{H}, h_j^{F}) / \tau \big)
-},
+\mathcal{L}_{\text{CPC}}
+= -\sum_{t}
+\log \frac{\exp(\mathrm{sim}(h_t^H,h_t^F)/\tau)}
+{\sum_k \exp(\mathrm{sim}(h_t^H,h_k^F)/\tau)}
 \]
 
-where:
+where \(\mathrm{sim}\) is cosine similarity and \(\tau\) is temperature.
 
-- \(\mathrm{sim}(\cdot,\cdot)\) is cosine similarity,
-- \(\tau\) is a temperature hyperparameter,
-- \(\mathcal{N}(t)\) includes the positive index \(t\) and a set of negative indices \(j\).
-
-Optionally, we **gate** the TS-CP² loss using an intervention/change-point gate \(g_t \in [0, 1]\):
+#### 2.2.3. Change score from history–future similarity
+TS-CP² detects candidate change points by drops in history–future similarity:
 
 \[
-\mathcal{L}_{\mathrm{TS\text{-}CP^2}}^{\mathrm{gated}}
-=
-\sum_t g_t \,
-\ell_{\mathrm{TS\text{-}CP^2}}(t),
+s_t=\mathrm{sim}(h_t^H,h_t^F),\quad \bar{s}_t=\mathrm{MA}(s_t),\quad c_t=\bar{s}_t - s_t
 \]
-so that only time steps that are likely to be affected by an intervention contribute strongly to the contrastive loss.
 
-### Overall Objective
+Large \(c_t\) suggests a potential change point.
 
-For the TS-CP² version of CITRIS-VAE, the total loss is:
+#### 2.2.4. Soft intervention gates (replace missing labels)
+We infer continuous “intervention degrees” per causal factor with an MLP:
 
 \[
-\mathcal{L}
-=
-\mathcal{L}_{\text{CITRIS-VAE}}
-+
-\lambda_{\mathrm{TS\text{-}CP^2}} \,
-\mathcal{L}_{\mathrm{TS\text{-}CP^2}},
+g_t=\sigma(\mathrm{MLP}_\eta([z_{t-1},z_t,c_t]))\in(0,1)^K,\quad g_1=0
 \]
 
-where:
+The i-th component \(g_t(i)\) represents the inferred degree of intervention on factor \(i\) at time \(t\).
 
-- \(\mathcal{L}_{\text{CITRIS-VAE}}\) is the standard CITRIS ELBO (reconstruction + KL + intervention terms),
-- \(\lambda_{\mathrm{TS\text{-}CP^2}}\) is a scalar weight controlling the strength of the contrastive term.
+#### 2.2.5. Gated transition prior (interpolation between dynamics vs intervention)
+We replace discrete indicators \(I^{t+1}\) with inferred gates \(g_{t+1}\). For each factor \(i\):
+
+\[
+p(z^{t+1}_i\mid z^t,g_{t+1}(i))=
+\mathcal{N}\Big((1-g)\mu^{dyn}_i(z^t)+g\,\mu^{int}_i,\ (1-g)\Sigma^{dyn}_i+g\,\Sigma^{int}_i\Big)
+\]
+
+This smoothly interpolates between “predictable dynamics” and “externally perturbed jump dynamics.”
 
 
 
+#### 2.2.6. Overall objective We combine:
+- reconstruction loss \(L_{rec}\),
+- temporal KL term \(L_{KL}\) vs the gated transition prior,
+- CPC loss \(L_{CPC}\),
+- gate sparsity penalty \(L_{gate}=\frac{1}{TK}\sum_{t,i} g_t(i)\) to encourage sparse interventions.
 
+Final objective:
+
+\[
+L = L_{rec} + \beta_{KL} L_{KL} + \lambda_{CPC} L_{CPC} + \lambda_{gate} L_{gate}
+\]
+
+This is designed to jointly learn causal latents, change-point structure, and soft intervention assignments that replace explicit labels.
+
+## 3. Experiments
+
+### 3.1. Dataset: Ball-in-Boxes
+Ball moves within a box; only interventions cause box swaps; within-box x-position is unaffected → highlights “minimal causal variables” intuition.
+The Ball-in-Boxes is a simple dataset for showcasing the concept of the minimal causal variables. The system consists of a ball which randomly moves within a box, but only under an intervention can swap between the two boxes. Thereby, the intervention does not affect the x-position in the box. Thus, one can only discover the box assignment as a causal variable, and not whether the inner x-position also belongs to it. The dataset generation for the Ball-in-Boxes dataset is implemented in the file data_generation_ball_in_boxes.py. The image rendering is based on matplotlib. To generate the dataset , you can run 
+```bash
+python data_generation_ball_in_boxes.py --output_folder ball_in_boxes/
+```
+, where ball_in_boxes/ is the folder in which all data will be saved in.
+
+### 3.2. Models compared
+- **CITRISVAE** (baseline)
+- **CITRIS-TSCP²VAE** (ours)
+
+### 3.3. Evaluation Metrics
+We evaluate disentanglement / causal alignment using correlation-style metrics (e.g., R² diagonal vs off-diagonal, Spearman diagonal vs off-diagonal).
+
+
+## 4. Results
+### 4.1. SUmmary table (single run)
+| Model | R² diag ↑ | R² max off ↓ | ρ diag ↑ | ρ max off ↓ |
+|---|---:|---:|---:|---:|
+| CITRISVAE | -0.00320 | -0.00331 | 0.00328 | 0.00277 |
+| CITRIS-TSCP²VAE | -0.00196 | -0.01042 | -0.00116 | 0.00410 |
+
+In this run, values are near zero for both models; CITRIS-TSCP²VAE does not show a clear improvement at this training scale. This suggests either:
+- insufficient training / data scale,
+- evaluation mismatch vs the original CITRIS pipeline,
+- CPC/gate loss weights need tuning.
+
+## 5. Contribution
+- **Real-world problem setting:** Reformulated CITRIS for scenarios where **ground-truth intervention targets** \(I^t\) are **not available**, which is more realistic for real-world sequential data.
+
+- **Change-point-aware representation learning:** Added a **TS-CP² temporal window encoder** and a **CPC/InfoNCE contrastive objective** on CITRIS latents to encourage sensitivity to **regime shifts / abrupt distribution changes**.
+
+- **Label-free intervention inference:** Proposed **soft intervention gates** \(g_t \in (0,1)^K\) inferred from the latent sequence (and a change score), replacing discrete intervention labels with a continuous intervention signal.
+
+- **Gated transition prior:** Designed a **gated prior** that interpolates between “normal dynamics” and “intervention-driven” transitions using \(g_t\), enabling CITRIS-style temporal modeling without labeled interventions.
+
+- **End-to-end implementation + evaluation:** Implemented the full training pipeline and evaluated **CITRISVAE (baseline)** vs **CITRIS-TSCP²VAE (ours)** on Ball-in-Boxes using correlation-based disentanglement/alignment metrics (e.g., diagonal vs off-diagonal R²/Spearman).
+
+## 6. Limitations
+- Results shown are from limited training scale and a single reported run; conclusions about improvements are not yet robust.
+- The gating mechanism assumes change-score spikes correlate with interventions; this may not hold in more complex dynamics.
+- There is an inherent trade-off between reconstruction/forecasting and CPC-based separation; careful tuning of \(\lambda_{CPC}\), \(\lambda_{gate}\), \(\beta_{KL}\) is required.
 
 
